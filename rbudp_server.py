@@ -1,10 +1,12 @@
-import math
 import os
 import pickle
 import socket
 import sys
 import threading
 import time
+from math import ceil
+
+from fsplit.filesplit import FileSplit
 
 
 class MainServerSession(object):
@@ -14,6 +16,8 @@ class MainServerSession(object):
         self.server_tcp_port = server_tcp_port
         self.trans_rate = trans_rate
         self.current_server_udp_port = 50000  # for keeping track of UDP port number
+        self.num_threads = 0
+        self.filename = ''
         self.initialize_connection()
     
     def initialize_connection(self):
@@ -22,19 +26,60 @@ class MainServerSession(object):
         self.server_tcp_socket.bind((self.server_name, self.server_tcp_port))
         self.server_tcp_socket.listen(1)
         print('Server: Listening for connections')
-        
-        # TODO: server listens to num_threads and split the file
-        # create a new thread when there is incoming connections
-        while True:
-            connection_tcp_socket, addr = self.server_tcp_socket.accept()
-            a = ThreadedServerSession(self.server_name, self.current_server_udp_port, self.trans_rate,
-                                      connection_tcp_socket)
-            threading.Thread(target = a.send_data).start()
+
+        server_tcp_connection, addr = self.server_tcp_socket.accept()
+        client_info = server_tcp_connection.recv(1024)
+        self.num_threads, self.filename = pickle.loads(client_info)
+        print('Server: File {0} is requested by Client {1} with {2} threads.'
+              .format(self.filename, addr, self.num_threads))
+
+        self.segment_file()
+
+        for i in range(self.num_threads):
+            thread_tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            thread_tcp_port = server_tcp_connection.recv(1024)
+    
+            thread_tcp_socket.bind((self.server_name, thread_tcp_port))
+            thread_tcp_socket.listen(1)
+    
+            thread_tcp_connection, addr = thread_tcp_socket.accept()
+    
+            thread = ThreadedServerSession(self.server_name, self.current_server_udp_port, self.trans_rate,
+                                           thread_tcp_connection)
+            threading.Thread(target = thread.send_data).start()
+            
             self.current_server_udp_port += 1
-            print("Server: Connection accepted")
+            print('Server: Connection accepted')
     
     def close_connection(self):
         self.server_tcp_socket.close()
+
+    def segment_file(self):
+        if not os.path.exists('./temp'):
+            os.mkdir('./temp')
+    
+        file_size = int(os.stat(self.filename).st_size)
+        chunk_size = ceil(file_size / self.num_threads)
+    
+        fs = FileSplit(self.filename, chunk_size, './temp')
+        fs.split()
+    
+        name, ext = os.path.splitext(self.filename)
+        second_last_filename = os.path.join('./temp', "{0}_{1}{2}".format(name, self.num_threads, ext))
+        last_filename = os.path.join('./temp', "{0}_{1}{2}".format(name, self.num_threads + 1, ext))
+    
+        # To get rid of the trailing file
+        with open(second_last_filename, 'a+b') as f:
+            last_file = open(last_filename, 'r+b')
+            tail = last_file.read()
+            last_file.close()
+        
+            f.write(tail)
+            f.close()
+    
+        os.remove(last_filename)
+    
+        return
 
 
 class ThreadedServerSession(object):
@@ -70,7 +115,7 @@ class ThreadedServerSession(object):
             # check whether file exists in current directory
             if os.path.isfile(self.filename):
                 file_size = os.path.getsize(self.filename)
-                blocks = math.ceil(file_size / 1024)
+                blocks = ceil(file_size / 1024)
                 self.connection_tcp_socket.send(str(blocks).encode('utf-8'))
                 break
             
@@ -80,7 +125,7 @@ class ThreadedServerSession(object):
         
         with open(self.filename, 'rb') as f:
             print("Server: Sending data over...")
-            bytes_array = b''  # a bytearray for temporary storage of bytes from file for retrieval
+            bytes_array = b''  # a byte array for temporary storage of bytes from file for retrieval
             data = f.read(self.buffer_size)
             segment_id = 0  # use 16 bits to range from 0 to 65535
             while data:

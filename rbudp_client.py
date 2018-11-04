@@ -4,6 +4,7 @@ import socket
 import sys
 import threading
 import time
+
 from glob import glob
 from shutil import copyfileobj
 
@@ -13,7 +14,6 @@ class ClientSession(object):
     def __init__(self, client_name, client_udp_port, server_name, server_tcp_port, filename = None, num_threads = 4):
         # initialize variables
         self.client_tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.client_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.client_name = client_name
         self.client_udp_port = int(client_udp_port)
         self.server_name = server_name
@@ -24,17 +24,13 @@ class ClientSession(object):
     
     def close_connection(self):
         self.client_tcp_socket.close()
-        self.client_udp_socket.close()
     
     def initialize_connection(self):
-        self.client_udp_socket.bind((self.client_name, self.client_udp_port))
         # setup 3-way handshake
         self.client_tcp_socket.connect((self.server_name, self.server_tcp_port))
-        # send over information about UDP socket
-        self.client_tcp_socket.send(pickle.dumps((self.client_name, self.client_udp_port)))
         print("Client: Successfully connected to server")
-        
-        self.client_tcp_socket.send(self.num_threads.encode('utf-8'))
+
+        self.client_tcp_socket.send(pickle.dumps((self.num_threads.encode('utf-8'), self.filename.encode('utf-8'))))
         print('Client: Download will be in {} threads'.format(self.num_threads))
     
     def receive_data(self):
@@ -123,9 +119,15 @@ class ClientSession(object):
         # thread_num is (i + 1)
         thread_tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         thread_tcp_socket.connect((self.server_name, self.server_tcp_port + thread_num))
+
+        # send over information about TCP socket
+        self.client_tcp_socket.send(self.server_tcp_port + thread_num)
         
         thread_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         thread_udp_socket.connect((self.client_name, self.client_udp_port + thread_num))
+
+        # send over information about UDP socket
+        thread_tcp_socket.send(pickle.dumps((self.client_name, self.client_udp_port + thread_num)))
         
         return thread_tcp_socket, thread_udp_socket
     

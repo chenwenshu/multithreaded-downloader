@@ -12,11 +12,11 @@ haven't really started.
 
 * Python 3
 * Click
-* requests
+* filesplit
 
 Install the dependencies using pip:
 ```
-pip3 install Click requests
+pip3 install Click filesplit
 ```
 
 ## How to Use
@@ -32,7 +32,7 @@ __This section is intentionally left blank.__
 
 ## TODO
 
-- [ ] Initial Research
+- [x] Initial Research
 - [ ] Code
 - [ ] Test
 - [ ] CLI
