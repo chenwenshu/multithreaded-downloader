@@ -16,8 +16,8 @@ def combine(filename):
             partial_file.close()
             
         whole_file.close()
-    
-    print('Succesfully combined file {}'.format(filename))
+
+    print('Successfully combined file {}'.format(filename))
     return
 
 

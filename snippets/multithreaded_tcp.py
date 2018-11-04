@@ -1,6 +1,7 @@
+import threading
+
 import click
 import requests
-import threading
 
 
 def is_range_supported(get_request):
@@ -64,8 +65,8 @@ def start_download(threads, saved_name, url):
         
         if i == threads - 1:
             end_byte = file_size
-            
-        thread = threading.Thread(target = range_download(),
+
+        thread = threading.Thread(target = range_download,
                                   kwargs = {'url': url,
                                             'start_byte': start_byte,
                                             'end_byte': end_byte,

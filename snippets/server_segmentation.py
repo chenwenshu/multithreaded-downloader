@@ -1,6 +1,6 @@
 import os
-
 from math import ceil
+
 from fsplit.filesplit import FileSplit
 
 
@@ -9,9 +9,7 @@ def segment(num_threads, filename):
         os.mkdir('./temp')
     
     file_size = int(os.stat(filename).st_size)
-    print(file_size)
     chunk_size = ceil(file_size / num_threads)
-    print(chunk_size)
     
     fs = FileSplit(filename, chunk_size, './temp')
     fs.split()
@@ -19,7 +17,8 @@ def segment(num_threads, filename):
     name, ext = os.path.splitext(filename)
     second_last_filename = os.path.join('./temp', "{0}_{1}{2}".format(name, num_threads, ext))
     last_filename = os.path.join('./temp', "{0}_{1}{2}".format(name, num_threads + 1, ext))
-    
+
+    # To get rid of the trailing file
     with open(second_last_filename, 'a+b') as f:
         last_file = open(last_filename, 'r+b')
         tail = last_file.read()
