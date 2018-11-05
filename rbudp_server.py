@@ -23,35 +23,44 @@ class MainServerSession(object):
     
     def initialize_connection(self):
         # wait for TCP connection from client
-        self.server_tcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # allow reuse of port number
+        self.server_tcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # allow reuse of port numbers
         self.server_tcp_socket.bind((self.server_name, self.server_tcp_port))
         self.server_tcp_socket.listen(1)
         print('Server: Listening for connections')
 
         server_tcp_connection, addr = self.server_tcp_socket.accept()
+        
         client_info = server_tcp_connection.recv(1024)
         self.num_threads, self.filename = pickle.loads(client_info)
+        self.num_threads = int(self.num_threads)
+        
         print('Server: File {0} is requested by Client {1} with {2} threads.'
               .format(self.filename, addr, self.num_threads))
 
         self.segment_file()
 
+        tcp_port_list = server_tcp_connection.recv(1024).decode('utf-8').split()
+
         for i in range(self.num_threads):
-            thread_tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            thread_tcp_port = server_tcp_connection.recv(1024)
-    
-            thread_tcp_socket.bind((self.server_name, thread_tcp_port))
-            thread_tcp_socket.listen(1)
-    
-            thread_tcp_connection, addr = thread_tcp_socket.accept()
+            print('Thread {} running'.format(i + 1))
     
             thread = ThreadedServerSession(self.server_name, self.current_server_udp_port, self.trans_rate,
-                                           thread_tcp_connection)
-            threading.Thread(target = thread.send_data).start()
+                                           tcp_port_list[i])
+            t = threading.Thread(target = thread.send_data)
+            t.setDaemon(True)
+            t.start()
             
             self.current_server_udp_port += 1
             print('Server: Connection accepted')
+
+        main_thread = threading.current_thread()
+
+        for thread in threading.enumerate():
+            if thread is main_thread:
+                continue
     
+            thread.join()
+
     def close_connection(self):
         self.server_tcp_socket.close()
 
@@ -84,17 +93,35 @@ class MainServerSession(object):
 
 
 class ThreadedServerSession(object):
-    def __init__(self, server_name, server_udp_port, trans_rate, connection_tcp_socket):
+    def __init__(self, server_name, server_udp_port, trans_rate, thread_tcp_port):
         self.server_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.server_udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        
         self.server_name = server_name
         self.server_udp_port = server_udp_port
         self.buffer_size = 1024
         # to account for transmission time
         self.sleep_time = 1 / ((float(trans_rate) * 1000000 / 8) / (self.buffer_size + 2))  # without transmission time
-        self.connection_tcp_socket = connection_tcp_socket
+        self.thread_tcp_port = int(thread_tcp_port)
         self.client_name = ''
         self.client_udp_port = 0
         self.filename = ''
+        self.connection_tcp_socket = None
+        
+    def create_tcp_connection(self):
+        thread_tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        thread_tcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        thread_tcp_socket.bind((self.server_name, self.thread_tcp_port))
+        thread_tcp_socket.listen(1)
+    
+        print('Thread listening on port {}'.format((self.server_name, self.thread_tcp_port)))
+    
+        try:
+            self.connection_tcp_socket, addr = thread_tcp_socket.accept()
+        except socket.error as e:
+            print('socket error {}'.format(e))
+        
+        print('connection accepted')
     
     def close_connection(self):
         print('Closing thread connection')
@@ -102,17 +129,20 @@ class ThreadedServerSession(object):
         self.connection_tcp_socket.close()
     
     def send_data(self):
+        self.create_tcp_connection()
+
         print("Sleep time", self.sleep_time)
         
         # start a UDP session to send packets over
         client_addr = self.connection_tcp_socket.recv(1024)
         self.client_name, self.client_udp_port = pickle.loads(client_addr)
-        self.server_udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.server_udp_socket.bind((self.server_name, self.server_udp_port))
         
         print("Server: Awaiting filename from client")
         while True:
-            self.filename = self.connection_tcp_socket.recv(1024)
+            self.filename = self.connection_tcp_socket.recv(1024).decode('utf-8')
+            self.filename = 'temp/' + self.filename
+            print('File requested {}'.format(self.filename))
+            
             # check whether file exists in current directory
             if os.path.isfile(self.filename):
                 file_size = os.path.getsize(self.filename)
@@ -146,7 +176,7 @@ class ThreadedServerSession(object):
                 # once done, send a DONE signal and wait for next message
                 self.connection_tcp_socket.send('DONE'.encode('utf-8'))
                 missing_bytes = self.connection_tcp_socket.recv(1024)
-                missing = [int.from_bytes(missing_bytes[i:i + 2], byteorder = 'big') for i in
+                missing = [int.from_bytes(missing_bytes[i: i + 2], byteorder = 'big') for i in
                            range(0, len(missing_bytes), 2)]
                 
                 if len(missing) == 0:

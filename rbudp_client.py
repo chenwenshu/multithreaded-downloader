@@ -30,7 +30,7 @@ class ClientSession(object):
         self.client_tcp_socket.connect((self.server_name, self.server_tcp_port))
         print("Client: Successfully connected to server")
 
-        self.client_tcp_socket.send(pickle.dumps((self.num_threads.encode('utf-8'), self.filename.encode('utf-8'))))
+        self.client_tcp_socket.send(pickle.dumps((self.num_threads, self.filename)))
         print('Client: Download will be in {} threads'.format(self.num_threads))
     
     def receive_data(self):
@@ -59,7 +59,10 @@ class ClientSession(object):
         segment_name = "{0}_{1}{2}".format(name, thread_num, ext)
         
         thread_tcp_socket, thread_udp_socket = self.connect_thread_sockets(thread_num)
+
+        time.sleep(.1)
         thread_tcp_socket.send(segment_name.encode('utf-8'))
+        print('File requesting {}'.format(segment_name))
         
         # receive the segment size
         blocks = int(thread_tcp_socket.recv(1024).decode('utf-8'))
@@ -67,6 +70,7 @@ class ClientSession(object):
             print("Client: File does not exist. Please try again :(")
         
         print("Client: Thread {} receiving data...".format(thread_num))
+        thread_tcp_socket.setblocking(False)
         thread_udp_socket.settimeout(.001)
         
         start_time = time.time()
@@ -80,11 +84,16 @@ class ClientSession(object):
                 try:
                     if thread_tcp_socket.recv(1024).decode('utf-8') == 'DONE':
                         transmission_count += 1
-                        print("Client: Transmission on thread {} done..".format(thread_num))
+                        print("DONE")
+                        # print("Client: Transmission on thread {} done..".format(thread_num))
                         break
+                except socket.error:
+                    pass
                     
+                try:
                     data, addr = thread_udp_socket.recvfrom(1026)
                     segment_id_list.append(int.from_bytes(data[0:2], byteorder = 'big'))
+                    # print('segment received {}'.format(segment_id_list))
                     bytes_array += data[2:]
                 except socket.error:
                     pass
@@ -116,25 +125,35 @@ class ClientSession(object):
         print("***************************************")
     
     def connect_thread_sockets(self, thread_num):
+        # send over information about TCP socket
+        self.client_tcp_socket.send((str(self.server_tcp_port + thread_num) + '\n').encode('utf-8'))
+        
         # thread_num is (i + 1)
         thread_tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        thread_tcp_socket.connect((self.server_name, self.server_tcp_port + thread_num))
+        thread_tcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-        # send over information about TCP socket
-        self.client_tcp_socket.send(self.server_tcp_port + thread_num)
-        
-        thread_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        thread_udp_socket.connect((self.client_name, self.client_udp_port + thread_num))
+        while True:
+            try:
+                time.sleep(.1)
+                print('Trying to connect to port {}'.format((self.server_name, self.server_tcp_port + thread_num)))
+                thread_tcp_socket.connect((self.server_name, self.server_tcp_port + thread_num))
+                break
+                
+            except socket.error as e:
+                print('error {}'.format(e))
 
         # send over information about UDP socket
         thread_tcp_socket.send(pickle.dumps((self.client_name, self.client_udp_port + thread_num)))
+
+        thread_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        thread_udp_socket.bind((self.client_name, self.client_udp_port + thread_num))
+        print('udp port {}'.format(self.client_udp_port + thread_num))
         
         return thread_tcp_socket, thread_udp_socket
     
     def combine_segments(self):
         name, ext = os.path.splitext(self.filename)
         file_list = sorted(glob(name + '*' + ext))
-        print(file_list)
         
         with open(self.filename, 'a+b') as whole_file:
             for partial in file_list:
@@ -167,6 +186,7 @@ if __name__ == '__main__':
     client_udp_port = sys.argv[2]
     server_name = sys.argv[3]
     server_tcp_port = 12001
-    client_session = ClientSession(client_name, client_udp_port, server_name, server_tcp_port, 'test2.JPG')
+    client_session = ClientSession(client_name, client_udp_port, server_name, server_tcp_port,
+                                   'Psychology 8th - Gleitman, Gross, Reisberg.pdf')
     client_session.receive_data()
     client_session.close_connection()
