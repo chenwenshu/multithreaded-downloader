@@ -1,9 +1,10 @@
 import os
 import pickle
 import socket
-import sys
 import threading
 import time
+
+import click
 
 from glob import glob
 from shutil import copyfileobj
@@ -11,7 +12,7 @@ from shutil import copyfileobj
 
 class ClientSession(object):
     # noinspection PyShadowingNames
-    def __init__(self, client_name, client_udp_port, server_name, server_tcp_port, filename = None, num_threads = 4):
+    def __init__(self, client_name, client_udp_port, server_name, server_tcp_port, filename, num_threads):
         # initialize variables
         self.client_tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_name = client_name
@@ -84,7 +85,6 @@ class ClientSession(object):
                 try:
                     if thread_tcp_socket.recv(1024).decode('utf-8') == 'DONE':
                         transmission_count += 1
-                        print("DONE")
                         # print("Client: Transmission on thread {} done..".format(thread_num))
                         break
                 except socket.error:
@@ -99,7 +99,7 @@ class ClientSession(object):
                     pass
             
             missing = self.missing_elements(sorted(segment_id_list), 0, blocks - 1)
-            print("Client: Missing packets:", missing)
+            # print("Client: Missing packets:", missing)
             if len(missing) == 0:
                 print("Client: Segment is fully received on thread {}. Yay!".format(thread_num))
                 thread_tcp_socket.close()
@@ -146,6 +146,7 @@ class ClientSession(object):
         thread_tcp_socket.send(pickle.dumps((self.client_name, self.client_udp_port + thread_num)))
 
         thread_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        thread_udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         thread_udp_socket.bind((self.client_name, self.client_udp_port + thread_num))
         print('udp port {}'.format(self.client_udp_port + thread_num))
         
@@ -153,9 +154,9 @@ class ClientSession(object):
     
     def combine_segments(self):
         name, ext = os.path.splitext(self.filename)
-        file_list = sorted(glob(name + '*' + ext))
+        file_list = sorted(glob(name + '*_copy' + ext))
         
-        with open(self.filename, 'a+b') as whole_file:
+        with open('download_' + self.filename, 'a+b') as whole_file:
             for partial in file_list:
                 partial_file = open(partial, 'r+b')
                 copyfileobj(partial_file, whole_file)
@@ -181,12 +182,19 @@ class ClientSession(object):
         return sorted(set(range(start, end + 1)).difference(l))
 
 
-if __name__ == '__main__':
-    client_name = sys.argv[1]
-    client_udp_port = sys.argv[2]
-    server_name = sys.argv[3]
-    server_tcp_port = 12001
-    client_session = ClientSession(client_name, client_udp_port, server_name, server_tcp_port,
-                                   'Psychology 8th - Gleitman, Gross, Reisberg.pdf')
+@click.command()
+@click.option('-c', '--client-name', help = 'Client Name', required = True)
+@click.option('--client-udp-port', help = 'Client UDP Port', default = 50000)
+@click.option('-s', '--server-name', help = 'Server Name', required = True)
+@click.option('--server-tcp-port', help = 'Server TCP Port', default = 12001)
+@click.option('-f', '--filename', help = 'File to Download', required = True)
+@click.option('-t', '--num-threads', help = 'Number of Threads', default = 4)
+def start_client(client_name, client_udp_port, server_name, server_tcp_port, filename, num_threads):
+    client_session = ClientSession(client_name, client_udp_port, server_name, server_tcp_port, filename, num_threads)
+    
     client_session.receive_data()
     client_session.close_connection()
+
+
+if __name__ == '__main__':
+    start_client()

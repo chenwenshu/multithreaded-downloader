@@ -1,9 +1,10 @@
 import os
 import pickle
 import socket
-import sys
 import threading
 import time
+
+import click
 
 from math import ceil
 
@@ -16,10 +17,8 @@ class MainServerSession(object):
         self.server_name = server_name
         self.server_tcp_port = server_tcp_port
         self.trans_rate = trans_rate
-        self.current_server_udp_port = 50000  # for keeping track of UDP port number
         self.num_threads = 0
         self.filename = ''
-        self.initialize_connection()
     
     def initialize_connection(self):
         # wait for TCP connection from client
@@ -27,7 +26,7 @@ class MainServerSession(object):
         self.server_tcp_socket.bind((self.server_name, self.server_tcp_port))
         self.server_tcp_socket.listen(1)
         print('Server: Listening for connections')
-
+        
         server_tcp_connection, addr = self.server_tcp_socket.accept()
         
         client_info = server_tcp_connection.recv(1024)
@@ -36,69 +35,67 @@ class MainServerSession(object):
         
         print('Server: File {0} is requested by Client {1} with {2} threads.'
               .format(self.filename, addr, self.num_threads))
-
+        
         self.segment_file()
-
+        
         tcp_port_list = server_tcp_connection.recv(1024).decode('utf-8').split()
-
+        
         for i in range(self.num_threads):
             print('Thread {} running'.format(i + 1))
-    
-            thread = ThreadedServerSession(self.server_name, self.current_server_udp_port, self.trans_rate,
+            
+            thread = ThreadedServerSession(self.server_name, self.trans_rate,
                                            tcp_port_list[i])
             t = threading.Thread(target = thread.send_data)
             t.setDaemon(True)
             t.start()
             
-            self.current_server_udp_port += 1
             print('Server: Connection accepted')
-
+        
         main_thread = threading.current_thread()
-
+        
         for thread in threading.enumerate():
             if thread is main_thread:
                 continue
-    
+            
             thread.join()
-
+    
     def close_connection(self):
         self.server_tcp_socket.close()
-
+    
     def segment_file(self):
         if not os.path.exists('./temp'):
             os.mkdir('./temp')
-    
+        
         file_size = int(os.stat(self.filename).st_size)
         chunk_size = ceil(file_size / self.num_threads)
-    
+        
         fs = FileSplit(self.filename, chunk_size, './temp')
         fs.split()
-    
+        
         name, ext = os.path.splitext(self.filename)
         second_last_filename = os.path.join('./temp', "{0}_{1}{2}".format(name, self.num_threads, ext))
         last_filename = os.path.join('./temp', "{0}_{1}{2}".format(name, self.num_threads + 1, ext))
-    
+        
         # To get rid of the trailing file
         with open(second_last_filename, 'a+b') as f:
             last_file = open(last_filename, 'r+b')
             tail = last_file.read()
             last_file.close()
-        
+            
             f.write(tail)
             f.close()
-    
+        
         os.remove(last_filename)
-    
+        
         return
 
 
 class ThreadedServerSession(object):
-    def __init__(self, server_name, server_udp_port, trans_rate, thread_tcp_port):
+    def __init__(self, server_name, trans_rate, thread_tcp_port):
         self.server_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.server_udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         
         self.server_name = server_name
-        self.server_udp_port = server_udp_port
         self.buffer_size = 1024
         # to account for transmission time
         self.sleep_time = 1 / ((float(trans_rate) * 1000000 / 8) / (self.buffer_size + 2))  # without transmission time
@@ -107,15 +104,15 @@ class ThreadedServerSession(object):
         self.client_udp_port = 0
         self.filename = ''
         self.connection_tcp_socket = None
-        
+    
     def create_tcp_connection(self):
         thread_tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         thread_tcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         thread_tcp_socket.bind((self.server_name, self.thread_tcp_port))
         thread_tcp_socket.listen(1)
-    
+        
         print('Thread listening on port {}'.format((self.server_name, self.thread_tcp_port)))
-    
+        
         try:
             self.connection_tcp_socket, addr = thread_tcp_socket.accept()
         except socket.error as e:
@@ -130,7 +127,7 @@ class ThreadedServerSession(object):
     
     def send_data(self):
         self.create_tcp_connection()
-
+        
         print("Sleep time", self.sleep_time)
         
         # start a UDP session to send packets over
@@ -190,9 +187,16 @@ class ThreadedServerSession(object):
         self.close_connection()
 
 
+@click.command()
+@click.option('-s', '--server-name', help = 'Server IP address', required = True)
+@click.option('--server-tcp-port', help = 'Server TCP Port', default = 12001)
+@click.option('-r', '--trans-rate', help = 'Transmission Rate in Mbps', default = 10000.0)
+def start_server(server_name, server_tcp_port, trans_rate):
+    server_session = MainServerSession(server_name, server_tcp_port, trans_rate)
+    
+    server_session.initialize_connection()
+    server_session.close_connection()
+
+
 if __name__ == '__main__':
-    serverName = sys.argv[1]
-    server_TCPPort = 12001
-    transrate = sys.argv[2]  # user-defined rate in megabits per second (Mbps)
-    mainServerSession = MainServerSession(serverName, server_TCPPort, transrate)
-    mainServerSession.close_connection()
+    start_server()

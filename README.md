@@ -6,7 +6,9 @@ This is a group project for SUTD 50.012 Networks.
 
 ## Getting Started
 
-haven't really started.
+Clone the repository. The client and the server can run from the same host or different ones.  
+
+Use of a virtual environment is encouraged.
 
 ### Dependencies
 
@@ -20,8 +22,22 @@ pip3 install Click filesplit
 ```
 
 ## How to Use
+This programme consists of a client and a server.  
 
-__This section is intentionally left blank.__
+1. Launch the server from command line  
+`python3 rbudp_server.py -s {server IP address}`  
+
+    other options:
+    * `--server-tcp-port {port number}` to manually set the TCP port number. Default is 12001.
+    * `-r {transmission rate}` to manually set the transmission rate in Mbps. Default is 10000.0 Mbps.
+
+2. Start the client from command line
+`python3 rbudp_client.py -c {client IP address} -s {server IP address} -f {file to download}`  
+
+    other options:
+    * `--client-udp-port {port number}` to manually set the UDP port number. Default is 50000.
+    * `--server-tcp-port {port number}` to manually set the TCP port number. Default is 12001.
+    * `-t {number of threads}` to manually set the number of threads used during download. Default is 4.
 
 ## Authors
 
@@ -30,14 +46,18 @@ __This section is intentionally left blank.__
 * __Delbert Felix Nurawan__
 * __Chen Wenshu__
 
-## TODO
+## Timeline
 
 - [x] Initial Research
-- [ ] Code
+- [x] Code
 - [ ] Test
-- [ ] CLI
+- [x] CLI
 - [ ] GUI
-- [ ] Submit Beta Version :calendar: _7/11/18_
+- [x] Submit Beta Version :calendar: _7/11/18_
 - [ ] Submit Final Version :calendar: _14/11/8_
+
+## TODO
+* Store the packets to disk while downloading to prevent memory hogging.
+* Make a real server
 
 <b id="f1"><sup>1</sup></b> Group Leader [↩](#a1)
