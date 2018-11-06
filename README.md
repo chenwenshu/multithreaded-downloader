@@ -31,7 +31,7 @@ This programme consists of a client and a server.
     * `--server-tcp-port {port number}` to manually set the TCP port number. Default is 12001.
     * `-r {transmission rate}` to manually set the transmission rate in Mbps. Default is 10000.0 Mbps.
 
-2. Start the client from command line
+2. Start the client from command line  
 `python3 rbudp_client.py -c {client IP address} -s {server IP address} -f {file to download}`  
 
     other options:
