@@ -38,7 +38,12 @@ class MainServerSession(object):
         
         self.segment_file()
         
-        tcp_port_list = server_tcp_connection.recv(1024).decode('utf-8').split()
+        # tcp_port_list = server_tcp_connection.recv(1024).decode('utf-8').split()
+        
+        while True:
+            thread_tcp_connection, thread_tcp_addr = server_tcp_connection.accept()
+            
+            
         
         for i in range(self.num_threads):
             print('Thread {} running'.format(i + 1))
@@ -118,7 +123,7 @@ class ThreadedServerSession(object):
         except socket.error as e:
             print('socket error {}'.format(e))
         
-        print('connection accepted')
+        print('Connection accepted')
     
     def close_connection(self):
         print('Closing thread connection')

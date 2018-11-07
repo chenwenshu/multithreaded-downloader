@@ -126,7 +126,9 @@ class ClientSession(object):
     
     def connect_thread_sockets(self, thread_num):
         # send over information about TCP socket
-        self.client_tcp_socket.send((str(self.server_tcp_port + thread_num) + '\n').encode('utf-8'))
+        # self.client_tcp_socket.send((str(self.server_tcp_port + thread_num) + '\n').encode('utf-8'))
+        
+        thread_tcp_port = (self.server_name, self.server_tcp_port + thread_num)
         
         # thread_num is (i + 1)
         thread_tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -135,8 +137,8 @@ class ClientSession(object):
         while True:
             try:
                 time.sleep(.1)
-                print('Trying to connect to port {}'.format((self.server_name, self.server_tcp_port + thread_num)))
-                thread_tcp_socket.connect((self.server_name, self.server_tcp_port + thread_num))
+                print('Trying to connect to port {}'.format(thread_tcp_port))
+                thread_tcp_socket.connect(thread_tcp_port)
                 break
                 
             except socket.error as e:
