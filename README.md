@@ -25,14 +25,14 @@ pip3 install Click filesplit
 This programme consists of a client and a server.  
 
 1. Launch the server from command line  
-`python3 rbudp_server.py -s {server IP address}`  
+`python3 MTD_server.py -s {server IP address}`  
 
     other options:
     * `--server-tcp-port {port number}` to manually set the TCP port number. Default is 12001.
     * `-r {transmission rate}` to manually set the transmission rate in Mbps. Default is 10000.0 Mbps.
 
 2. Start the client from command line  
-`python3 rbudp_client.py -c {client IP address} -s {server IP address} -f {file to download}`  
+`python3 MTD_client.py -c {client IP address} -s {server IP address} -f {file to download}`  
 
     other options:
     * `--client-udp-port {port number}` to manually set the UDP port number. Default is 50000.
