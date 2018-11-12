@@ -37,25 +37,23 @@ class MainServerSession(object):
               .format(self.filename, addr, self.num_threads))
         
         self.segment_file()
+        thread_count = 0
         
         # tcp_port_list = server_tcp_connection.recv(1024).decode('utf-8').split()
         
-        while True:
+        while thread_count < self.num_threads:
             thread_tcp_connection, thread_tcp_addr = server_tcp_connection.accept()
+            thread = ThreadedServerSession(self.server_name, self.trans_rate, thread_tcp_connection)
             
+            print('Thread {} running'.format(thread_count + 1))
+            thread_count += 1
             
-        
-        for i in range(self.num_threads):
-            print('Thread {} running'.format(i + 1))
-            
-            thread = ThreadedServerSession(self.server_name, self.trans_rate,
-                                           tcp_port_list[i])
             t = threading.Thread(target = thread.send_data)
             t.setDaemon(True)
             t.start()
             
             print('Server: Connection accepted')
-        
+            
         main_thread = threading.current_thread()
         
         for thread in threading.enumerate():
@@ -96,7 +94,7 @@ class MainServerSession(object):
 
 
 class ThreadedServerSession(object):
-    def __init__(self, server_name, trans_rate, thread_tcp_port):
+    def __init__(self, server_name, trans_rate, thread_tcp_connection):
         self.server_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.server_udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         
@@ -104,44 +102,26 @@ class ThreadedServerSession(object):
         self.buffer_size = 1024
         # to account for transmission time
         self.sleep_time = 1 / ((float(trans_rate) * 1000000 / 8) / (self.buffer_size + 2))  # without transmission time
-        self.thread_tcp_port = int(thread_tcp_port)
         self.client_name = ''
         self.client_udp_port = 0
         self.filename = ''
-        self.connection_tcp_socket = None
-    
-    def create_tcp_connection(self):
-        thread_tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        thread_tcp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        thread_tcp_socket.bind((self.server_name, self.thread_tcp_port))
-        thread_tcp_socket.listen(1)
-        
-        print('Thread listening on port {}'.format((self.server_name, self.thread_tcp_port)))
-        
-        try:
-            self.connection_tcp_socket, addr = thread_tcp_socket.accept()
-        except socket.error as e:
-            print('socket error {}'.format(e))
-        
-        print('Connection accepted')
+        self.thread_tcp_connection = thread_tcp_connection
     
     def close_connection(self):
         print('Closing thread connection')
         self.server_udp_socket.close()
-        self.connection_tcp_socket.close()
+        self.thread_tcp_connection.close()
     
     def send_data(self):
-        self.create_tcp_connection()
-        
         print("Sleep time", self.sleep_time)
         
         # start a UDP session to send packets over
-        client_addr = self.connection_tcp_socket.recv(1024)
+        client_addr = self.thread_tcp_connection.recv(1024)
         self.client_name, self.client_udp_port = pickle.loads(client_addr)
         
         print("Server: Awaiting filename from client")
         while True:
-            self.filename = self.connection_tcp_socket.recv(1024).decode('utf-8')
+            self.filename = self.thread_tcp_connection.recv(1024).decode('utf-8')
             self.filename = 'temp/' + self.filename
             print('File requested {}'.format(self.filename))
             
@@ -149,11 +129,11 @@ class ThreadedServerSession(object):
             if os.path.isfile(self.filename):
                 file_size = os.path.getsize(self.filename)
                 blocks = ceil(file_size / 1024)
-                self.connection_tcp_socket.send(str(blocks).encode('utf-8'))
+                self.thread_tcp_connection.send(str(blocks).encode('utf-8'))
                 break
             
             else:
-                self.connection_tcp_socket.send('0'.encode('utf-8'))
+                self.thread_tcp_connection.send('0'.encode('utf-8'))
                 print("Server: File does not exist. Continue waiting for filename")
         
         with open(self.filename, 'rb') as f:
@@ -176,8 +156,8 @@ class ThreadedServerSession(object):
             
             while True:
                 # once done, send a DONE signal and wait for next message
-                self.connection_tcp_socket.send('DONE'.encode('utf-8'))
-                missing_bytes = self.connection_tcp_socket.recv(1024)
+                self.thread_tcp_connection.send('DONE'.encode('utf-8'))
+                missing_bytes = self.thread_tcp_connection.recv(1024)
                 missing = [int.from_bytes(missing_bytes[i: i + 2], byteorder = 'big') for i in
                            range(0, len(missing_bytes), 2)]
                 
