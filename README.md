@@ -3,6 +3,7 @@
 This is a group project for SUTD 50.012 Networks.  
 
 <a href='Strawman Proposal.pdf'>Strawman Proposal</a><br>
+<a href='Networks Project Report.pdf'>Project Report</a><br>
 
 ## Getting Started
 
@@ -15,10 +16,11 @@ Use of a virtual environment is encouraged.
 * Python 3
 * Click
 * filesplit
+* tqdm
 
 Install the dependencies using pip:
 ```
-pip3 install Click filesplit
+pip3 install Click filesplit tqdm
 ```
 
 ## How to Use
@@ -39,6 +41,14 @@ This programme consists of a client and a server.
     * `--server-tcp-port {port number}` to manually set the TCP port number. Default is 12001.
     * `-t {number of threads}` to manually set the number of threads used during download. Default is 4.
 
+3. Once the client and the server establish connections, progress bars are shown in the terminal to indicate the 
+downloading status of each thread. Progress bars are listed in ascending order of the thread number.  
+
+    ![alt text](pbar-sc.png)
+
+4. MD5 hashing is implemented in the programme. Once the transmission finishes, the client verifies the integrity of the 
+received file against the server's hash.
+
 ## Authors
 
 * __Kimberlyn Loh__<sup id="a1">[1](#f1)</sup>
@@ -57,7 +67,7 @@ This programme consists of a client and a server.
 - [ ] Submit Final Version :calendar: _14/11/8_
 
 ## TODO
-* Store the packets to disk while downloading to prevent memory hogging.
-* Make a real server
+* ~~Store the packets to disk while downloading to prevent memory hogging.~~
+* ~~Make a real server~~
 
 <b id="f1"><sup>1</sup></b> Group Leader [↩](#a1)

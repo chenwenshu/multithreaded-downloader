@@ -4,12 +4,10 @@ import pickle
 import socket
 import threading
 import time
-
-import click
-
 from glob import glob
 from shutil import copyfileobj
 
+import click
 from tqdm import tqdm
 
 
@@ -46,22 +44,16 @@ class MainClientSession(object):
         # start downloading
         self.do_threading()
         self.combine_segments()
-        print('correct file received' if self.is_correct() else 'file is corrupted')
-    
-    def is_correct(self):
-        client_md5 = hashlib.md5()
-        
-        with open('download_' + self.filename, 'rb') as f:
-            for chunk in iter(lambda: f.read(4096), b''):
-                client_md5.update(chunk)
-                
-        return self.server_md5 == client_md5.digest()
+        print('\n' * (int(self.num_threads) - 1))   # avoid line conflict with thread-level pbars
+        print('File passes checksum!' if self.is_correct() else 'File is corrupted!')
     
     def do_threading(self):
+        lock = threading.Lock()
+        
         for i in range(int(self.num_threads)):
             thread = ThreadedClientSession(self.client_name, self.client_udp_port,
                                            self.server_name, self.new_server_tcp_port,
-                                           self.filename)
+                                           self.filename, lock)
             
             t = threading.Thread(target = thread.request_segment,
                                  kwargs = {'thread_num': i + 1})
@@ -92,14 +84,24 @@ class MainClientSession(object):
         [os.remove(segment) for segment in file_list]
         return
 
+    def is_correct(self):
+        client_md5 = hashlib.md5()
+    
+        with open('download_' + self.filename, 'rb') as f:
+            for chunk in iter(lambda: f.read(4096), b''):
+                client_md5.update(chunk)
+    
+        return self.server_md5 == client_md5.digest()
+    
 
 class ThreadedClientSession(object):
-    def __init__(self, client_name, client_udp_port, server_name, new_server_tcp_port, filename):
+    def __init__(self, client_name, client_udp_port, server_name, new_server_tcp_port, filename, lock):
         self.client_name = client_name
         self.client_udp_port = client_udp_port
         self.server_name = server_name
         self.new_server_tcp_port = new_server_tcp_port
         self.filename = filename
+        self.lock = lock
     
     def request_segment(self, thread_num):
         name, ext = os.path.splitext(self.filename)
@@ -119,61 +121,52 @@ class ThreadedClientSession(object):
         thread_tcp_socket.setblocking(False)
         thread_udp_socket.settimeout(.1)
         
-        start_time = time.time()
+        # start_time = time.time()
         packet_loss = 0
         transmission_count = 0
         segment_id_list = []
         segment_file = open(saved_name, 'wb')
         
-        pbar = tqdm(total = blocks)
-        
-        while True:
+        with tqdm(total = blocks, unit = 'KB', unit_scale = True, unit_divisor = 1024,
+                  position = thread_num - 1) as pbar:
             while True:
-                try:
-                    if thread_tcp_socket.recv(1024).decode('utf-8') == 'DONE':
-                        transmission_count += 1
-                        print("Client: Transmission on thread {} done..".format(thread_num))
-                        break
+                while True:
+                    try:
+                        if thread_tcp_socket.recv(1024).decode('utf-8') == 'DONE':
+                            transmission_count += 1
+                            break
+                    
+                    except socket.error:
+                        pass
+                    
+                    try:
+                        data, addr = thread_udp_socket.recvfrom(1026)
+                        segment_id_list = self.save_packet(segment_file, data, segment_id_list)
+                        
+                        pbar.update(1)
+                    except socket.error:
+                        pass
                 
-                except socket.error:
-                    pass
+                missing = self.missing_elements(sorted(segment_id_list), 0, blocks - 1)
                 
-                try:
-                    data, addr = thread_udp_socket.recvfrom(1026)
-                    segment_id_list = self.save_packet(segment_file, data, segment_id_list)
+                if len(missing) == 0:
+                    break
                 
-                    pbar.update(1)
-                except socket.error:
-                    # print('{}\nduring UDP receive'.format(e))
-                    pass
-                
-            missing = self.missing_elements(sorted(segment_id_list), 0, blocks - 1)
-            print("Client Thread {}: Missing packets:".format(thread_num), missing)
-            
-            if len(missing) == 0:
-                print("Client: Segment is fully received on thread {}. Yay!".format(thread_num))
-                # thread_tcp_socket.close()
-                # thread_udp_socket.close()
-                break
-            
-            else:
-                packet_loss += len(missing)
-                missing_bytes = b''
-                
-                for idx in missing:
-                    print('processing missing byte {}/{}'.format(idx, len(missing)))
-                    missing_bytes += idx.to_bytes(2, byteorder = 'big')
-                thread_tcp_socket.send(missing_bytes)
-                # thread_tcp_socket.settimeout(.1)
+                else:
+                    packet_loss += len(missing)
+                    missing_bytes = b''
+                    
+                    for idx in missing:
+                        missing_bytes += idx.to_bytes(2, byteorder = 'big')
+                    thread_tcp_socket.send(missing_bytes)
         
-        pbar.close()
         segment_file.close()
-        end_time = time.time()
+        # end_time = time.time()
         
-        print("***************************************")
-        print("Total time taken: {}s".format(round(end_time - start_time, 5)))
-        print("Percentage packet loss: {}%".format(round(packet_loss / (blocks * transmission_count), 10) * 100))
-        print("***************************************")
+        # time.sleep(3)
+        # self.lock.acquire()
+        # self.show_summary(thread_num, start_time, end_time, packet_loss, blocks, transmission_count)
+        # self.lock.release()
     
     def connect_thread_sockets(self, thread_num):
         # send over information about TCP socket
@@ -186,7 +179,7 @@ class ThreadedClientSession(object):
         
         while True:
             try:
-                time.sleep(.1)
+                # time.sleep(.1)
                 thread_tcp_socket.connect(thread_tcp_port)
                 break
             
@@ -203,12 +196,20 @@ class ThreadedClientSession(object):
         return thread_tcp_socket, thread_udp_socket
     
     @staticmethod
+    def show_summary(thread_num, start_time, end_time, packet_loss, blocks, transmission_count):
+        tqdm.write("***************************************")
+        tqdm.write("Summary on Thread {}".format(thread_num))
+        tqdm.write("Total time taken: {}s".format(round(end_time - start_time, 5)))
+        tqdm.write("Percentage packet loss: {}%".format(round(packet_loss / (blocks * transmission_count), 10) * 100))
+        tqdm.write("***************************************")
+    
+    @staticmethod
     def save_packet(file, segment, segment_id_list):
         segment_id = int.from_bytes(segment[:2], byteorder = 'big')
         
         if segment_id not in segment_id_list:
             segment_id_list.append(segment_id)
-        
+            
             file.seek(segment_id * 1024)
             file.write(segment[2:])
         
