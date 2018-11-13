@@ -5,12 +5,10 @@ import random
 import socket
 import threading
 import time
-
-import click
-
 from math import ceil
 from shutil import rmtree
 
+import click
 from fsplit.filesplit import FileSplit
 
 
@@ -61,8 +59,8 @@ class MasterThreadedServerSession(object):
         self.num_threads, self.filename = pickle.loads(client_info)
         self.num_threads = int(self.num_threads)
         
-        print('Server: File {0} is requested by Client {1} with {2} threads.'
-              .format(self.filename, self.server_name, self.num_threads))
+        # print('Server: File {0} is requested by Client {1} with {2} threads.'
+        #       .format(self.filename, self.server_name, self.num_threads))
         
         self.segment_file()
         
@@ -191,7 +189,6 @@ class ThreadedServerSession(object):
             
             while data:
                 segment_id_bytes = segment_id.to_bytes(2, byteorder = 'big')
-                # print("Server Thread Segment id {} Size of bytes {}".format(segment_id, len(data)))
 
                 data = segment_id_bytes + data  # sending over 2 bytes of segment id + 1024 bytes of data
                 bytes_array += data  # this code shows a substantial increase in time taken
@@ -206,25 +203,21 @@ class ThreadedServerSession(object):
             while True:
                 # once done, send a DONE signal and wait for next message
                 self.thread_tcp_connection.send('DONE'.encode('utf-8'))
-                print(0)
+                
                 try:
                     missing_bytes = self.thread_tcp_connection.recv(1024)
                     missing = [int.from_bytes(missing_bytes[i: i + 2], byteorder = 'big') for i in
                                range(0, len(missing_bytes), 2)]
-                    
-                    print(1)
-                    
+                               
                     if len(missing) == 0:
-                        print(2)
                         break
                         
                     else:
-                        print(3)
                         for idx in missing:
-                            print("Server Thread Segment id {} Size of bytes {}".format(
-                                    int.from_bytes(bytes_array[idx * 1026: (idx + 1) * 1026][0: 2], byteorder='big'),
-                                    len(bytes_array[idx * 1026: (idx + 1) * 1026]) - 2))
-                            
+                            # print("Server Thread Segment id {} Size of bytes {}".format(
+                            #         int.from_bytes(bytes_array[idx * 1026: (idx + 1) * 1026][0: 2], byteorder='big'),
+                            #         len(bytes_array[idx * 1026: (idx + 1) * 1026]) - 2))
+                            #
                             self.server_udp_socket.sendto(bytes_array[idx * 1026:(idx + 1) * 1026],
                                                           (self.client_name, self.client_udp_port))
     
@@ -233,7 +226,6 @@ class ThreadedServerSession(object):
                 except socket.error as e:
                     print(e)
         
-        print(4)
         self.close_connection()
 
 
