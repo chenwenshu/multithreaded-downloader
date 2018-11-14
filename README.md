@@ -4,6 +4,7 @@ This is a group project for SUTD 50.012 Networks.
 
 <a href='Strawman Proposal.pdf'>Strawman Proposal</a><br>
 <a href='Networks Project Report.pdf'>Project Report</a><br>
+<a href='Networks Project Presentation.pdf'>Project Presentation</a><br>
 
 ## Getting Started
 
@@ -44,10 +45,15 @@ This programme consists of a client and a server.
 3. Once the client and the server establish connections, progress bars are shown in the terminal to indicate the 
 downloading status of each thread. Progress bars are listed in ascending order of the thread number.  
 
-    ![alt text](pbar-sc.png)
+    ![progress bar](pbar-sc.png)
 
-4. MD5 hashing is implemented in the programme. Once the transmission finishes, the client verifies the integrity of the 
-received file against the server's hash.
+4. MD5 hashing is implemented in the programme. Once the transmission finishes, the client verifies the integrity of the received file against the server's hash.
+
+## Demonstration
+
+Our group has a Raspberry Pi set up, running the server remotely in the Pi Lab. The client script runs on a laptop in the LEET Lab.  
+
+![demo](demo-sc.jpeg)
 
 ## Authors
 
@@ -64,10 +70,7 @@ received file against the server's hash.
 - [x] CLI
 - [ ] GUI
 - [x] Submit Beta Version :calendar: _7/11/18_
-- [ ] Submit Final Version :calendar: _14/11/8_
+- [x] Submit Final Version :calendar: _14/11/8_
 
-## TODO
-* ~~Store the packets to disk while downloading to prevent memory hogging.~~
-* ~~Make a real server~~
 
 <b id="f1"><sup>1</sup></b> Group Leader [↩](#a1)
