@@ -71,7 +71,7 @@ class MainClientSession(object):
     
     def combine_segments(self):
         name, ext = os.path.splitext(self.filename)
-        file_list = sorted(glob(name + '*_copy' + ext))
+        file_list = sorted(glob(name + '*_copy' + ext), key = lambda x: int(x.split('_')[-2]))
         
         with open('download_' + self.filename, 'wb') as whole_file:
             for partial in file_list:
