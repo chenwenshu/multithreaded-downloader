@@ -17,17 +17,17 @@ def main():
     parser.add_option('-i',
                       '--ip',
                       type='string',
-                      help='ip address to bind to (default: INADDR_ANY)',
+                      help='ip to bind',
                       default="")
     parser.add_option('-p',
                       '--port',
                       type='int',
-                      help='local port to use (default: 69)',
+                      help='specify port (default: 69)',
                       default=69)
     parser.add_option('-r',
                       '--root',
                       type='string',
-                      help='path to serve from',
+                      help='specify directory',
                       default=None)
     
     options, args = parser.parse_args()
@@ -36,6 +36,7 @@ def main():
         parser.print_help()
         sys.exit(1)
 
+    #Initialize tftp server 
     server = tftpy.TftpServer(options.root)
     try:
         server.listen(options.ip, options.port)

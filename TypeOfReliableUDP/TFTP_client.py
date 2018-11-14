@@ -5,7 +5,7 @@ import tftpy
 log = logging.getLogger('tftpy')
 log.setLevel(logging.INFO)
 
-# console handler
+
 handler = logging.StreamHandler()
 handler.setLevel(logging.DEBUG)
 default_formatter = logging.Formatter('[%(asctime)s] %(message)s')
@@ -17,47 +17,47 @@ def main():
     parser = OptionParser(usage=usage)
     parser.add_option('-H',
                       '--host',
-                      help='remote host or ip address')
+                      help='specify ip')
     parser.add_option('-p',
                       '--port',
-                      help='remote port to use (default: 69)',
+                      help='specify port (default: 69)',
                       default=69)
     parser.add_option('-f',
                       '--filename',
-                      help='filename to fetch (deprecated, use download)')
+                      help='specify file')
     parser.add_option('-D',
                       '--download',
-                      help='filename to download')
+                      help='specify file to download')
     parser.add_option('-u',
                       '--upload',
-                      help='filename to upload')
+                      help='specify file to upload')
     parser.add_option('-b',
                       '--blksize',
-                      help='udp packet size to use (default: 512)')
+                      help='specify packet size (default: 512)')
     parser.add_option('-o',
                       '--output',
-                      help='output file, - for stdout (default: same as download)')
+                      help='specify output file')
     parser.add_option('-i',
                       '--input',
-                      help='input file, - for stdin (default: same as upload)')
+                      help='specify input file')
     
     parser.add_option('-l',
                       '--localip',
                       action='store',
                       dest='localip',
                       default="",
-                      help='local IP for client to bind to (ie. interface)')
+                      help='local ip')
     options, args = parser.parse_args()
-    # Handle legacy --filename argument.
+    
     if options.filename:
         options.download = options.filename
     if not options.host or (not options.download and not options.upload):
-        sys.stderr.write("Both the --host and --filename options "
-                         "are required.\n")
+        sys.stderr.write("Need filename and host\n")
         parser.print_help()
         sys.exit(1)
 
-    
+    #Keep track of download/upload progress based on DAT or ACK parckets received
+    #Transferred bytes and ACK received
     class Progress(object):
         def __init__(self, out):
             self.progress = 0
@@ -77,10 +77,13 @@ def main():
     if options.blksize:
         tftp_options['blksize'] = int(options.blksize)
     
+    #Initialize tftp client 
     tclient = tftpy.TftpClient(options.host,
                                int(options.port),
                                tftp_options,
                                options.localip)
+    
+    #Checking for download or upload
     try:
         if options.download:
             if not options.output:
