@@ -38,6 +38,7 @@ def RUDPClient(serverAddress, serverPort, filename):
                     print ("\nMaximum connection trials reached, skipping request\n")
                     os.remove("r_" + filename)
                     break
+            # Understanding packet 
             string_data = data.decode('utf-8')
             seqNo = string_data.split(delimiter)[1]
             sendback = string_data.split(delimiter)[3]
@@ -45,9 +46,11 @@ def RUDPClient(serverAddress, serverPort, filename):
             clientHash = hashlib.sha1(sendback).hexdigest()
             print ("Server hash: " + string_data.split(delimiter)[0])
             print ("Client hash: " + clientHash)
+            # Check if corrupted and correct sequence
             if string_data.split(delimiter)[0] == clientHash and seqNoFlag == int(seqNo == True):
                 packetLength = string_data.split(delimiter)[2]
                 if string_data.split(delimiter)[3] == "FNF":
+                    # if file not found 
                     print ("Requested file could not be found on the server")
                     os.remove("r_" + userInput)
                 else:
